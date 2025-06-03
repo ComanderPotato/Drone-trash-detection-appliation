@@ -9,28 +9,11 @@ from ultralytics import YOLO
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import torch
-# Load YOLOv8 model
-model = YOLO('best.pt')
+model = YOLO('models/best_generic.pt')
 model.conf = 0.25
 model.iou = 0.25
 GENERIC_CLASS_NAME = "Unlabeled litter"
 GENERIC_CLASS_INDEX = list(model.names.values()).index(GENERIC_CLASS_NAME)
-# TRASH_CLASSES = [
-#     "Aluminium foil", "Battery", "Aluminium blister pack", "Carded blister pack",
-#     "Other plastic bottle", "Clear plastic bottle", "Glass bottle", "Plastic bottle cap",
-#     "Metal bottle cap", "Broken glass", "Food Can", "Aerosol", "Drink can", "Toilet tube",
-#     "Other carton", "Egg carton", "Drink carton", "Corrugated carton", "Meal carton",
-#     "Pizza box", "Paper cup", "Disposable plastic cup", "Foam cup", "Glass cup",
-#     "Other plastic cup", "Food waste", "Glass jar", "Plastic lid", "Metal lid",
-#     "Other plastic", "Magazine paper", "Tissues", "Wrapping paper", "Normal paper",
-#     "Paper bag", "Plastified paper bag", "Plastic film", "Six pack rings",
-#     "Garbage bag", "Other plastic wrapper", "Single-use carrier bag",
-#     "Polypropylene bag", "Crisp packet", "Spread tub", "Tupperware",
-#     "Disposable food container", "Foam food container", "Other plastic container",
-#     "Plastic glooves", "Plastic utensils", "Pop tab", "Rope & strings",
-#     "Scrap metal", "Shoe", "Squeezable tube", "Plastic straw", "Paper straw",
-#     "Styrofoam piece", "Unlabeled litter", "Cigarette"
-# ]
 
 def get_class_color(label):
     np.random.seed(hash(label) % 2**32)
@@ -40,7 +23,8 @@ class TrashDetectorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("🚁 Drone Trash Detection System")
-        self.video_capture = cv2.VideoCapture(0)
+        self.video_capture = cv2.VideoCapture("503618786_1419839339362932_838717897605217346_n.mp4")
+
         self.running = True
         self.current_figure = None  # For storing current visualization
 
@@ -83,8 +67,8 @@ class TrashDetectorApp:
         self.main_tab.grid_columnconfigure(1, weight=1)
 
         # Left side widgets: video, buttons, table
-        self.video_label = tk.Label(self.left_frame, bd=2, relief="solid", bg="black")
-        self.video_label.pack(pady=10, fill='both', expand=True)
+        self.video_label = tk.Label(self.left_frame, bd=2, relief="solid", bg="black", height=540, width=1280)
+        self.video_label.pack(pady=10)
 
         # Summary labels (live count and volume)
         summary_frame = tk.Frame(self.left_frame, bg="#f0f2f5")
@@ -113,7 +97,7 @@ class TrashDetectorApp:
         visualize_button.pack(side='left', padx=5)
 
         # Treeview table
-        self.cumulative_tree = ttk.Treeview(self.left_frame, columns=("Type", "Count", "Volume"), show='headings', height=15)
+        self.cumulative_tree = ttk.Treeview(self.left_frame, columns=("Type", "Count", "Volume"), show='headings')
         self.cumulative_tree.heading("Type", text="Trash Type")
         self.cumulative_tree.heading("Count", text="Number of Objects")
         self.cumulative_tree.heading("Volume", text="Total Estimated Volume")
@@ -169,36 +153,14 @@ class TrashDetectorApp:
 
         ret, frame = self.video_capture.read()
         if ret:
-            # results = model(frame)[0]
             with torch.inference_mode():
                 results = model.track(source=frame, persist=True, tracker="custom_bytetrack.yaml", conf=model.conf, iou=model.iou, stream_buffer=True)[0]
-                # results = model(source=frame, mode='inference', conf=model.conf, iou=model.iou)[0]
+                # results = model(source=frame, conf=model.conf, iou=model.iou)[0]
                 detections = results.boxes
-                masks = results.masks
-                # annotated_frame = frame.copy()
                 annotated_frame = results.plot()
                 trash_count = 0
                 total_volume = 0.0
 
-                # if masks is not None and detections is not None:
-                #     cls_ids = detections.cls.cpu().numpy()
-                #     for i, mask in enumerate(masks.data.cpu().numpy()):
-                #         conf = float(detections.conf[i])
-                #         if conf < model.conf:
-                #             continue
-                #         label = TRASH_CLASSES[int(cls_ids[i])]
-                #         binary_mask = (mask * 255).astype(np.uint8)
-                #         binary_mask = cv2.resize(binary_mask, (annotated_frame.shape[1], annotated_frame.shape[0]))
-                #         color_mask = np.zeros_like(annotated_frame, dtype=np.uint8)
-                #         color = get_class_color(label)
-                #         color_mask[binary_mask > 127] = color
-                #         annotated_frame = cv2.addWeighted(annotated_frame, 1.0, color_mask, 1.0, 0)
-                # detections = results.boxes
-
-                # for i, detections in enumerate(results.boxes):
-                #     conf = float(detections.conf[i])
-                #     detections
-                #     results.boxes.cls[i] 
                 if detections is not None and detections.xyxy is not None:
                     for i in range(len(detections.xyxy)):
                         conf = float(detections.conf[i])
@@ -215,8 +177,10 @@ class TrashDetectorApp:
 
                 self.count_label.config(text=f"Live Trash Items: {trash_count}")
                 self.volume_label.config(text=f"Live Estimated Volume: {total_volume:.2f}")
+                
 
                 image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+                image = cv2.resize(image, (1280, 540))
                 img = Image.fromarray(image)
                 imgtk = ImageTk.PhotoImage(image=img)
                 self.video_label.imgtk = imgtk
@@ -406,6 +370,7 @@ class TrashDetectorApp:
                 global model
                 model = YOLO(filepath)
                 model.conf = self.confidence_slider.get()
+                model.iou = self.IoU_slider.get()
                 messagebox.showinfo("Success", f"Model loaded from:\n{filepath}")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load model:\n{e}")
@@ -415,10 +380,3 @@ class TrashDetectorApp:
         self.running = False
         self.video_capture.release()
         self.root.destroy()
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    root.geometry("1920x1080")
-    app = TrashDetectorApp(root)
-    root.protocol("WM_DELETE_WINDOW", app.on_closing)
-    root.mainloop()
