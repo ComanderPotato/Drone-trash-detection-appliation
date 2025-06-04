@@ -9,9 +9,9 @@ from ultralytics import YOLO
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import torch
-model = YOLO('models/best_generic.pt')
-model.conf = 0.25
-model.iou = 0.25
+model = YOLO('models/best_v8_retrained.pt')
+model.conf = 0.75
+model.iou = 0.3
 GENERIC_CLASS_NAME = "Unlabeled litter"
 GENERIC_CLASS_INDEX = list(model.names.values()).index(GENERIC_CLASS_NAME)
 
@@ -23,7 +23,7 @@ class TrashDetectorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("🚁 Drone Trash Detection System")
-        self.video_capture = cv2.VideoCapture("503618786_1419839339362932_838717897605217346_n.mp4")
+        self.video_capture = cv2.VideoCapture(0)
 
         self.running = True
         self.current_figure = None  # For storing current visualization
@@ -74,10 +74,10 @@ class TrashDetectorApp:
         summary_frame = tk.Frame(self.left_frame, bg="#f0f2f5")
         summary_frame.pack(fill='x', pady=5)
 
-        self.count_label = tk.Label(summary_frame, text="Live Trash Items: 0", font=('Segoe UI', 10, 'bold'), bg="#f0f2f5")
+        self.count_label = tk.Label(summary_frame, text="Live Trash Items: 0", font=('Segoe UI', 10, 'bold'), bg="#f0f2f5", fg="black")
         self.count_label.pack(side='left', padx=15)
 
-        self.volume_label = tk.Label(summary_frame, text="Live Estimated Volume: 0", font=('Segoe UI', 10, 'bold'), bg="#f0f2f5")
+        self.volume_label = tk.Label(summary_frame, text="Live Estimated Volume: 0", font=('Segoe UI', 10, 'bold'), bg="#f0f2f5", fg="black")
         self.volume_label.pack(side='left', padx=15)
 
         # Buttons horizontally - centered horizontally
@@ -111,21 +111,21 @@ class TrashDetectorApp:
         self.visualization_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
         # Default "No Current Visualization" label
-        self.no_vis_label = tk.Label(self.visualization_frame, text="No Current Visualization", font=('Segoe UI', 14, 'italic'))
+        self.no_vis_label = tk.Label(self.visualization_frame, text="No Current Visualization", font=('Segoe UI', 14, 'italic'), bg="#f0f2f5", fg="black")
         self.no_vis_label.pack(expand=True)
 
         # Settings tab
-        tk.Label(self.settings_tab, text="Confidence Threshold", font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+        tk.Label(self.settings_tab, text="Confidence Threshold", font=('Segoe UI', 10, 'bold'), bg="#f0f2f5", fg="black").pack(pady=(0, 5))
 
         self.confidence_slider = tk.Scale(self.settings_tab, from_=0, to=1, resolution=0.05,
                                         orient='horizontal', command=self.update_confidence,
-                                        length=300, troughcolor="#cccccc", bg="#f0f2f5")
+                                        length=300, troughcolor="#cccccc", bg="#f0f2f5", fg="black")
         self.confidence_slider.set(model.conf)
         self.confidence_slider.pack(pady=(0, 20))
-        tk.Label(self.settings_tab, text="IoU Threshold", font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+        tk.Label(self.settings_tab, text="IoU Threshold", font=('Segoe UI', 10, 'bold'), bg="#f0f2f5", fg="black").pack(pady=(0, 5))
         self.IoU_slider = tk.Scale(self.settings_tab, from_=0, to=1, resolution=0.05,
                                         orient='horizontal', command=self.update_iou,
-                                        length=300, troughcolor="#cccccc", bg="#f0f2f5")
+                                        length=300, troughcolor="#cccccc", bg="#f0f2f5", fg="black")
         self.IoU_slider.set(model.iou)
         self.IoU_slider.pack(pady=(0, 20))
 
@@ -153,38 +153,36 @@ class TrashDetectorApp:
 
         ret, frame = self.video_capture.read()
         if ret:
-            with torch.inference_mode():
-                results = model.track(source=frame, persist=True, tracker="custom_bytetrack.yaml", conf=model.conf, iou=model.iou, stream_buffer=True)[0]
-                # results = model(source=frame, conf=model.conf, iou=model.iou)[0]
-                detections = results.boxes
-                annotated_frame = results.plot()
-                trash_count = 0
-                total_volume = 0.0
+            # with torch.inference_mode():
+                # results = model.track(source=frame, persist=True, tracker="custom.yaml", conf=model.conf, iou=model.iou)[0]
+            results = model(source=frame, conf=model.conf, iou=model.iou, stream_buffer=True)[0]
+            detections = results.boxes
+            annotated_frame = results.plot()
+            trash_count = 0
+            total_volume = 0.0
 
-                if detections is not None and detections.xyxy is not None:
-                    for i in range(len(detections.xyxy)):
-                        conf = float(detections.conf[i])
-                        if conf >= model.conf:
-                            x1, y1, x2, y2 = map(int, detections.xyxy[i])
-                            area = (x2 - x1) * (y2 - y1)
-                            volume = area ** 0.5
-                            total_volume += volume
-                            trash_count += 1
-                        else:
-                            detections.cls[i] = GENERIC_CLASS_INDEX
-                            detections.conf[i] = 0.8
+            if detections is not None and detections.xyxy is not None:
+                for i in range(len(detections.xyxy)):
+                    conf = float(detections.conf[i])
+                    if conf >= model.conf:
+                        x1, y1, x2, y2 = map(int, detections.xyxy[i])
+                        area = (x2 - x1) * (y2 - y1)
+                        volume = area ** 0.5
+                        total_volume += volume
+                        trash_count += 1
+                    # else:
+                    #     detections.cls[i] = GENERIC_CLASS_INDEX
+                    #     detections.conf[i] = 0.8
 
 
-                self.count_label.config(text=f"Live Trash Items: {trash_count}")
-                self.volume_label.config(text=f"Live Estimated Volume: {total_volume:.2f}")
-                
-
-                image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                image = cv2.resize(image, (1280, 540))
-                img = Image.fromarray(image)
-                imgtk = ImageTk.PhotoImage(image=img)
-                self.video_label.imgtk = imgtk
-                self.video_label.configure(image=imgtk)
+            self.count_label.config(text=f"Live Trash Items: {trash_count}")
+            self.volume_label.config(text=f"Live Estimated Volume: {total_volume:.2f}")
+            image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+            image = cv2.resize(image, (1280, 540))
+            img = Image.fromarray(image)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.configure(image=imgtk)
 
         self.root.after(10, self.update_frame)
 
@@ -281,9 +279,9 @@ class TrashDetectorApp:
 
         if not self.cumulative_type_counts:
             self.no_vis_label = tk.Label(self.visualization_frame, text="No Current Visualization", 
-                                       font=('Segoe UI', 14, 'italic'))
+                                       font=('Segoe UI', 14, 'italic'), bg="#f0f2f5", fg="black")
             self.no_vis_label.pack(expand=True)
-            messagebox.showinfo("Info", "No data to visualize.")
+            # messagebox.showinfo("Info", "No data to visualize.")
             return
 
         labels = list(self.cumulative_type_counts.keys())
