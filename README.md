@@ -1,7 +1,3 @@
-Here's a polished and professional `README.md` for your **T.R.A.C.K. – Drone Trash Detection Application**. This version is designed for GitHub and showcases your system’s purpose, features, architecture, and technical decisions clearly and concisely.
-
----
-
 # ♻️ T.R.A.C.K. – Trash Recognition and Collection Keeper
 
 **T.R.A.C.K.** is a drone-powered trash detection system that uses deep learning and computer vision to identify, segment, and quantify waste in real time from aerial imagery. It’s designed for environmental cleanup initiatives, offering a scalable and intelligent solution for trash monitoring in public, remote, or hard-to-reach areas.
